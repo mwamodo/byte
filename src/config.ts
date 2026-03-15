@@ -40,6 +40,7 @@ type TelegramAccountConfig = { botToken: string; allowFrom?: number[]; replyDebo
 
 type RuntimeConfigFile = {
     apiKeys?: Record<string, string>;
+    cli?: { workspace?: string };
     model?: string;
     promptMode?: string;
     provider?: string;
@@ -56,6 +57,8 @@ type RuntimeConfigFile = {
 
 export type CliMode = "tui" | "print";
 
+export type WorkspaceMode = "local" | "global";
+
 export type CliConfig = {
     apiKey: string | undefined;
     apiKeys: Record<string, string> | undefined;
@@ -69,6 +72,7 @@ export type CliConfig = {
     sessionTarget: SessionTarget;
     thinkingLevel: ThinkingLevel | undefined;
     toolSummaryMode: ToolSummaryMode;
+    workspaceMode: WorkspaceMode;
 };
 
 export type GatewayConfig = {
@@ -149,6 +153,7 @@ export function loadCliConfig(): CliConfig {
             resume: { type: "string" },
             memory: { type: "boolean" },
             "tool-summaries": { type: "string" },
+            local: { type: "boolean" },
             "list-models": { type: "boolean" },
             app: { type: "boolean" },
             gateway: { type: "boolean" },
@@ -200,6 +205,10 @@ export function loadCliConfig(): CliConfig {
         sessionTarget = mode === "print" ? { kind: "memory" } : { kind: "new" };
     }
 
+    const workspaceMode: WorkspaceMode = values.local
+        ? "local"
+        : resolveWorkspaceMode(runtimeConfig.cli?.workspace);
+
     return {
         apiKey,
         apiKeys: runtimeConfig.apiKeys,
@@ -215,6 +224,7 @@ export function loadCliConfig(): CliConfig {
         toolSummaryMode: resolveToolSummaryMode(
             values["tool-summaries"] ?? runtimeConfig.toolSummaries,
         ),
+        workspaceMode,
     };
 }
 
@@ -403,6 +413,7 @@ Options:
   --thinking <level>  off | low | medium | high
   --resume [id]       Resume latest session, or a specific session by ID
   --memory            Use in-memory session (no persistence)
+  --local             Use current directory as workspace (no global workspace fallback)
   --tool-summaries    off | compact
   --interactive       Compatibility alias for TUI mode; cannot be combined with a prompt
   --list-models       Print currently available models and exit
@@ -413,7 +424,7 @@ Options:
 Runtime config:
   ${CONFIG_PATH}
   Supports JSON keys: provider, model, promptMode, thinking, toolSummaries, apiKeys,
-  agents, channels, bindings`);
+  cli.workspace ("local" | "global"), agents, channels, bindings`);
 }
 
 function loadRuntimeConfig(): RuntimeConfigFile {
@@ -446,6 +457,8 @@ function loadRuntimeConfig(): RuntimeConfigFile {
 
     const telegram = readOptionalObject(parsed, "telegram");
     const apiKeys = readOptionalStringRecord(parsed, "apiKeys");
+    const cliRaw = readOptionalObject(parsed, "cli");
+    const cliWorkspace = cliRaw !== undefined ? readOptionalString(cliRaw, "workspace") : undefined;
 
     // Parse multi-agent fields
     const agentsRaw = readOptionalObject(parsed, "agents");
@@ -507,6 +520,7 @@ function loadRuntimeConfig(): RuntimeConfigFile {
         apiKeys,
         bindings,
         channels,
+        cli: cliWorkspace !== undefined ? { workspace: cliWorkspace } : undefined,
         model: readOptionalString(parsed, "model"),
         promptMode: readOptionalString(parsed, "promptMode"),
         provider: readOptionalString(parsed, "provider"),
@@ -596,6 +610,20 @@ function resolveToolSummaryMode(rawMode: string | undefined): ToolSummaryMode {
         default:
             throw new Error(
                 `Unsupported tool summary mode "${rawMode}". Use ${TOOL_SUMMARY_MODES.join(" or ")}.`,
+            );
+    }
+}
+
+function resolveWorkspaceMode(rawMode: string | undefined): WorkspaceMode {
+    switch (rawMode) {
+        case undefined:
+        case "global":
+            return "global";
+        case "local":
+            return "local";
+        default:
+            throw new Error(
+                `Unsupported workspace mode "${rawMode}". Use local or global.`,
             );
     }
 }

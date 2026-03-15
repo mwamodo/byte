@@ -40,11 +40,13 @@ export type RuntimeContext = {
     sessionFactoryInputs: SharedSessionFactoryInputs;
 };
 
-export function ensureRuntimeDirs(): void {
+export function ensureRuntimeDirs(localMode?: boolean): void {
     mkdirSync(AGENT_DIR, { recursive: true, mode: 0o700 });
     mkdirSync(CLI_SESSIONS_DIR, { recursive: true });
-    ensureWorkspaceStructure();
-    seedWorkspaceFiles();
+    if (!localMode) {
+        ensureWorkspaceStructure();
+        seedWorkspaceFiles();
+    }
 }
 
 export function ensureAgentDirs(workspaceDir: string, sessionsDir: string): void {

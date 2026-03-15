@@ -2,7 +2,7 @@
 
 import { InteractiveMode, runPrintMode } from "@mariozechner/pi-coding-agent";
 
-import { loadCliConfig, printHelp } from "./config.js";
+import { loadCliConfig, printHelp, PROJECT_ROOT } from "./config.js";
 import { formatError } from "./render.js";
 import { openAgentSession } from "./agent-session.js";
 import { ensureRuntimeDirs, initializeRuntime } from "./runtime.js";
@@ -16,7 +16,10 @@ async function main(): Promise<void> {
         return;
     }
 
-    ensureRuntimeDirs();
+    const localMode = config.workspaceMode === "local";
+    ensureRuntimeDirs(localMode);
+
+    const workspaceDir = localMode ? PROJECT_ROOT : undefined;
 
     const runtime = initializeRuntime({
         apiKey: config.apiKey,
@@ -24,6 +27,7 @@ async function main(): Promise<void> {
         modelId: config.modelId,
         promptMode: config.promptMode,
         provider: config.provider,
+        workspaceDir,
     });
     const resolvedRuntime = await runtime;
 
