@@ -2,7 +2,7 @@
 
 Byte is a macOS AI desktop assistant with three interfaces: a desktop overlay (Electron), a Telegram gateway, and a CLI. All three share a unified multi-agent runtime built on pi-mono.
 
-## Quick start (Phase 1 — CLI)
+## Quick start
 
 ```bash
 git clone <repo> && cd byte
@@ -10,6 +10,7 @@ npm install
 npm run dev                              # Launch TUI (interactive mode)
 npm run dev -- "list files in this dir"  # Print mode (one-shot)
 npm run dev -- --list-models             # Show available models
+npm run dev -- --gateway                 # Start headless Telegram gateway
 ```
 
 On first run, Byte creates `~/.byte/` with default workspace files. Use `/login` in the TUI to authenticate with a provider, then `/model` to select a model.
@@ -21,6 +22,7 @@ npm run build
 npm link
 byte                                     # TUI mode
 byte "explain this error"                # Print mode
+byte --gateway                           # Headless Telegram gateway
 byte --help                              # Show all options
 ```
 
@@ -33,6 +35,7 @@ byte --help                              # Show all options
 | `~/.byte/agent/models.json` | Cached model registry |
 | `~/.byte/workspace/` | Workspace files: `AGENTS.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md` |
 | `~/.byte/sessions/cli/` | Persisted CLI sessions |
+| `~/.byte/sessions/<agent>/` | Per-agent sessions (gateway mode) |
 
 ### CLI options
 
@@ -49,14 +52,38 @@ byte --api-key <key>          Runtime API key (not persisted)
 byte --prompt-mode <mode>     full | minimal | none
 byte --thinking <level>       off | low | medium | high
 byte --tool-summaries <mode>  off | compact
+byte --gateway                Start headless Telegram gateway
 byte --app                    (not yet implemented)
-byte --gateway                (not yet implemented)
 byte --help                   Show help
 ```
 
-### Current non-goals (Phase 1)
+### Telegram gateway
 
-- Telegram gateway (`--gateway`) — Phase 2
+`byte --gateway` starts a headless multi-agent Telegram bot. Configure agents, Telegram accounts, and bindings in `~/.byte/byte.config.json`:
+
+```json
+{
+  "provider": "anthropic",
+  "model": "claude-sonnet-4",
+  "telegram": {
+    "botToken": "123456:ABC...",
+    "allowFrom": [123456789]
+  }
+}
+```
+
+For multi-agent setups, use the full agents/channels/bindings config (see [Multi-agent routing](#multi-agent-routing) below).
+
+The gateway supports:
+- Session persistence — conversations resume across restarts
+- Streaming via Telegram drafts with edit-message fallback
+- Message chunking for responses exceeding Telegram's 4096-char limit
+- Typing indicators during processing
+- Follow-up queuing when the agent is busy
+- Graceful shutdown on SIGINT/SIGTERM
+
+### Current non-goals
+
 - Electron desktop app (`--app`) — Phase 3
 - Desktop context injection — Phase 5
 - Streaming UI, packaging — Phase 6–7
@@ -201,42 +228,41 @@ byte/
 ├── electron-builder.yml          # macOS .dmg packaging config
 │
 ├── src/
-│   ├── cli.ts                    # CLI entrypoint (#!/usr/bin/env node)
-│   ├── app.ts                    # Electron app entrypoint
-│   ├── gateway.ts                # Headless gateway entrypoint (no Electron)
+│   ├── cli.ts                    # CLI entrypoint — TUI, print mode, and --gateway dispatch
+│   ├── app.ts                    # Electron app entrypoint (Phase 3)
+│   ├── gateway.ts                # Gateway bot creation (grammY bot, streaming, drafts)
 │   │
 │   ├── config.ts                 # Config loader (byte.config.json)
 │   ├── runtime.ts                # Shared runtime bootstrap
 │   ├── prompt.ts                 # System prompt builder
 │   ├── workspace.ts              # Workspace seeding
 │   ├── render.ts                 # Error formatting helpers
-│   ├── agents.ts                 # Agent initialization
+│   ├── agents.ts                 # Multi-agent initialization
 │   ├── agent-session.ts          # Session factory (wraps pi-mono)
 │   ├── session.ts                # CLI session manager helpers
+│   ├── resource-loader.ts        # Prompt resource loader
 │   │
 │   ├── router/
-│   │   ├── multi-gateway.ts      # Multi-agent router (starts all channels)
-│   │   └── types.ts              # Shared routing types
+│   │   └── multi-gateway.ts      # Multi-agent router (binds Telegram accounts to agents)
 │   │
 │   ├── channels/
-│   │   ├── telegram.ts           # Telegram channel (from pi-claw)
-│   │   ├── desktop.ts            # Desktop channel (Electron IPC bridge)
-│   │   └── types.ts              # Channel interface
+│   │   ├── telegram.ts           # Telegram channel (chunking, sending, editing, drafts)
+│   │   ├── desktop.ts            # Desktop channel (Phase 3 — Electron IPC bridge)
+│   │   └── types.ts              # Channel interface (Phase 3)
 │   │
 │   ├── context/
-│   │   └── engine.ts             # macOS context engine (AppleScript, clipboard)
+│   │   └── engine.ts             # macOS context engine (Phase 5 — AppleScript, clipboard)
 │   │
 │   ├── sessions/
-│   │   ├── registry.ts           # Session registry (from pi-claw, generalized)
-│   │   └── types.ts              # Session types
+│   │   └── registry.ts           # Telegram session registry (index-based persistence)
 │   │
-│   ├── desktop/
+│   ├── desktop/                  # Phase 3
 │   │   ├── main.ts               # Electron main process setup
 │   │   ├── preload.ts            # Context bridge for renderer
 │   │   ├── tray.ts               # System tray setup
 │   │   └── window.ts             # Overlay window creation
 │   │
-│   └── renderer/
+│   └── renderer/                 # Phase 3
 │       ├── index.html            # Overlay UI
 │       └── styles.css            # (optional, could be inline)
 │
@@ -268,15 +294,15 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 | `src/prompt.ts` | `src/prompt.ts` | Add `desktopContext` parameter to `buildSystemPrompt()` |
 | `src/workspace.ts` | `src/workspace.ts` | Different default content for IDENTITY.md (Byte personality) |
 | `src/render.ts` | `src/render.ts` | Identical |
-| `src/agents.ts` | `src/agents.ts` | Identical |
+| `src/agents.ts` | `src/agents.ts` | Identical (ported in Phase 2) |
 | `src/agent-session.ts` | `src/agent-session.ts` | Identical |
 | `src/session.ts` | `src/session.ts` | Paths change to `~/.byte/sessions/cli/` |
-| `src/sessions.ts` | `src/sessions/registry.ts` | Generalized — works for both Telegram and desktop sessions |
-| `src/channels/telegram.ts` | `src/channels/telegram.ts` | Identical |
-| `src/gateway.ts` | Part of `src/router/multi-gateway.ts` | Merged into unified router |
-| `src/multi-gateway.ts` | `src/router/multi-gateway.ts` | Extended to handle desktop channel type alongside telegram |
-| `src/cli.ts` | `src/cli.ts` | Command name changes, add `--app` and `--gateway` flags |
-| `src/index.ts` | `src/app.ts` | Becomes Electron main — starts overlay + gateway together |
+| `src/sessions.ts` | `src/sessions/registry.ts` | Import paths updated, moved to sessions dir (ported in Phase 2) |
+| `src/channels/telegram.ts` | `src/channels/telegram.ts` | Identical (ported in Phase 2) |
+| `src/gateway.ts` | `src/gateway.ts` | Bot creation logic, import paths updated (ported in Phase 2) |
+| `src/multi-gateway.ts` | `src/router/multi-gateway.ts` | Import paths updated, moved to router dir (ported in Phase 2) |
+| `src/cli.ts` | `src/cli.ts` | Command name changes, `--gateway` dispatches to headless gateway startup |
+| `src/index.ts` | `src/app.ts` | Becomes Electron main — starts overlay + gateway together (Phase 3) |
 
 ### What is new (not in pi-claw)
 
@@ -289,7 +315,7 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 | `src/desktop/window.ts` | Overlay window config — frameless, transparent, always-on-top, vibrancy |
 | `src/desktop/tray.ts` | System tray — agent status, model info, toggle overlay, quit |
 | `src/renderer/index.html` | Overlay UI — chat interface, context bar, Byte character |
-| `src/gateway.ts` | Headless entrypoint — runs multi-gateway without Electron |
+| `src/gateway.ts` | Gateway bot creation logic — grammY bot with streaming, draft transport, error recovery (ported from pi-claw in Phase 2) |
 
 ## Build phases
 
@@ -310,30 +336,25 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 10. Test: `npm run dev -- "list files in this directory"` (print mode)
 11. Port `test/config.test.ts`, `test/prompt.test.ts`, `test/workspace.test.ts` with updated paths
 
-**Milestone**: You can `byte` into TUI, `byte "prompt"` for one-shot, authenticate with any provider, and switch models. This replaces pi-claw for your daily terminal use.
-
-**Risk**: None. This is a well-understood port of working code.
+**Milestone**: You can `byte` into TUI, `byte "prompt"` for one-shot, authenticate with any provider, and switch models. This replaces pi-claw for daily terminal use.
 
 ---
 
-### Phase 2: Telegram gateway
+### Phase 2: Telegram gateway (complete)
 
 **Goal**: `byte --gateway` starts the Telegram multi-agent gateway. Same functionality as pi-claw's gateway, running headless (no Electron yet).
 
-**Tasks**:
-1. Port `src/channels/telegram.ts` — identical to pi-claw
-2. Port `src/sessions/registry.ts` — generalize `TelegramSessionRegistry` into a pattern that will also work for desktop sessions later. For now, it's the same Telegram-specific logic with the type parameters cleaned up
-3. Port `src/agents.ts` — identical
-4. Port `src/router/multi-gateway.ts` — adapted from pi-claw's `multi-gateway.ts`. For now, only handles Telegram channel type. The desktop channel branch is a TODO
-5. Write `src/gateway.ts` — the headless entrypoint. Same as pi-claw's `src/index.ts` but invoked via `byte --gateway`
-6. Update `src/cli.ts` to dispatch: no flags → TUI, prompt → print mode, `--gateway` → start headless gateway
-7. Update `src/config.ts` — add `loadMultiAgentGatewayConfig()` (ported from pi-claw) with `channels.telegram` support
-8. Test manually with a real Telegram bot
-9. Port `test/gateway.test.ts`, `test/sessions.test.ts`, `test/multi-gateway.test.ts`
+**What was built**:
+- `src/channels/telegram.ts` — Telegram message channel (chunking, sending, editing, draft transport)
+- `src/sessions/registry.ts` — Session registry with index-based persistence and session resumption
+- `src/agents.ts` — Multi-agent initialization (workspace + runtime bootstrap per agent)
+- `src/gateway.ts` — grammY bot with streaming, draft/edit transport, typing heartbeat, error recovery
+- `src/router/multi-gateway.ts` — Multi-agent router that binds Telegram accounts to agents
+- `src/cli.ts` — `--gateway` flag dispatches to headless gateway startup
+- `test/gateway.test.ts` — 17 tests covering session creation, busy queueing, streaming, draft/edit fallback, chunking, error handling, auth filtering
+- `test/sessions.test.ts` — Session registry index-based reopening
 
-**Milestone**: `byte --gateway` starts Telegram bots. Multi-agent config with bindings works. You have the full pi-claw gateway feature set under the Byte name.
-
-**Risk**: Low. Proven code, straight port.
+**Milestone**: `byte --gateway` starts Telegram bots. Multi-agent config with bindings works. Full pi-claw gateway feature parity under the Byte name.
 
 ---
 
@@ -551,8 +572,8 @@ npm install -D electron-builder@^25.0.0
 
 | Phase | Week | Deliverable | Status |
 |---|---|---|---|
-| 1. CLI foundation | 1 | `byte` TUI + print mode, `/login`, `/model` | Daily driver |
-| 2. Telegram gateway | 2 | `byte --gateway` with multi-agent routing | Feature parity with pi-claw |
+| 1. CLI foundation | 1 | `byte` TUI + print mode, `/login`, `/model` | Complete |
+| 2. Telegram gateway | 2 | `byte --gateway` with multi-agent routing | Complete |
 | 3. Desktop foundation | 3 | `byte --app` opens overlay, single prompt/response | Electron works |
 | 4. Unified process | 4 | Desktop + Telegram in one Electron process | Full architecture |
 | 5. Context engine | 5 | Active app, clipboard, CWD awareness | The differentiator |
