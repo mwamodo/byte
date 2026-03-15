@@ -1,8 +1,69 @@
-# Byte — Build Plan
+# Byte
 
-## Product summary
+Byte is a macOS AI desktop assistant with three interfaces: a desktop overlay (Electron), a Telegram gateway, and a CLI. All three share a unified multi-agent runtime built on pi-mono.
 
-Byte is a macOS AI desktop assistant with three interfaces: a desktop overlay (Electron), a Telegram gateway, and a CLI. All three share a unified multi-agent runtime built on pi-mono. One `.dmg` installs everything.
+## Quick start (Phase 1 — CLI)
+
+```bash
+git clone <repo> && cd byte
+npm install
+npm run dev                              # Launch TUI (interactive mode)
+npm run dev -- "list files in this dir"  # Print mode (one-shot)
+npm run dev -- --list-models             # Show available models
+```
+
+On first run, Byte creates `~/.byte/` with default workspace files. Use `/login` in the TUI to authenticate with a provider, then `/model` to select a model.
+
+After building and linking:
+
+```bash
+npm run build
+npm link
+byte                                     # TUI mode
+byte "explain this error"                # Print mode
+byte --help                              # Show all options
+```
+
+### Runtime paths
+
+| Path | Purpose |
+|---|---|
+| `~/.byte/byte.config.json` | Runtime config (provider, model, thinking, apiKeys, agents, channels, bindings) |
+| `~/.byte/agent/auth.json` | API key storage (managed by `/login`) |
+| `~/.byte/agent/models.json` | Cached model registry |
+| `~/.byte/workspace/` | Workspace files: `AGENTS.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md` |
+| `~/.byte/sessions/cli/` | Persisted CLI sessions |
+
+### CLI options
+
+```
+byte                          Launch TUI (interactive mode)
+byte [prompt]                 Print mode — one-shot, final text to stdout
+byte --prompt "..."           Same as above
+byte --list-models            Print available models and exit
+byte --resume [id]            Resume latest session, or by ID
+byte --memory                 Use in-memory session (no persistence)
+byte --provider <name>        Provider override (anthropic, openai, etc.)
+byte --model <id>             Model override
+byte --api-key <key>          Runtime API key (not persisted)
+byte --prompt-mode <mode>     full | minimal | none
+byte --thinking <level>       off | low | medium | high
+byte --tool-summaries <mode>  off | compact
+byte --app                    (not yet implemented)
+byte --gateway                (not yet implemented)
+byte --help                   Show help
+```
+
+### Current non-goals (Phase 1)
+
+- Telegram gateway (`--gateway`) — Phase 2
+- Electron desktop app (`--app`) — Phase 3
+- Desktop context injection — Phase 5
+- Streaming UI, packaging — Phase 6–7
+
+---
+
+## Build plan
 
 **Name**: Byte
 **CLI command**: `byte`
