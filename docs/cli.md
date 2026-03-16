@@ -38,8 +38,8 @@ No prompt launches the TUI. A prompt (positional or via `--prompt`) runs one-sho
 | `--tool-summaries <mode>` | `off` \| `compact` |
 | `--interactive` | Compatibility alias for TUI mode; cannot combine with a prompt |
 | `--list-models` | Print available models and exit |
-| `--app` | Launch the Electron desktop app (not yet implemented) |
-| `--gateway` | Start the headless gateway (not yet implemented) |
+| `--app` | Launch the Electron desktop app |
+| `--gateway` | Start the headless Telegram gateway |
 | `-h`, `--help` | Show help text |
 
 ## Workspace Modes
