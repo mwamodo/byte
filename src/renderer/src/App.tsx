@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type JSX } from "react";
-import { MascotCharacter } from "./mascot/MascotCharacter.js";
+import { ClippyCharacter } from "./mascot/ClippyCharacter.js";
 import { useMascotState } from "./mascot/useMascotState.js";
 import { useIdleBehavior } from "./mascot/useIdleBehavior.js";
 import { usePupilOffset } from "./mascot/usePupilOffset.js";
@@ -44,7 +44,7 @@ export default function App(): JSX.Element {
 
 function MascotView(): JSX.Element {
     const { expression, dispatch } = useMascotState();
-    const { blinkPhase, swayOffset } = useIdleBehavior(expression);
+    const { swayOffset } = useIdleBehavior(expression);
     const pupilOffset = usePupilOffset();
 
     return (
@@ -55,10 +55,9 @@ function MascotView(): JSX.Element {
                 void window.byte.toggle();
             }}
         >
-            <MascotCharacter
+            <ClippyCharacter
                 expression={expression}
                 pupilOffset={pupilOffset}
-                blinkPhase={blinkPhase}
                 swayOffset={swayOffset}
             />
         </main>

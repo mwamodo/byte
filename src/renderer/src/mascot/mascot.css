@@ -1,234 +1,101 @@
-.mascot-svg {
-    overflow: visible;
-    transform-origin: center;
-    filter: drop-shadow(0 12px 28px rgba(10, 32, 44, 0.16));
-    transition: filter 280ms ease, transform 280ms ease;
+/* ── Clippy character ────────────────────────────────────────────────────── */
+.clippy-character {
+    cursor: pointer;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
+    transition: filter 0.2s ease;
 }
 
-.mascot-shadow {
-    fill: rgba(14, 24, 33, 0.14);
-    filter: blur(6px);
-    transform-origin: center;
-    animation: mascot-shadow-drift 6s ease-in-out infinite;
+.clippy-character:hover {
+    filter: drop-shadow(0 6px 18px rgba(91, 155, 213, 0.5));
 }
 
-.mascot-aura {
-    transform-origin: center;
-    animation: mascot-aura-breathe 6.4s ease-in-out infinite;
-    filter: blur(16px);
+/* State animations */
+.clippy-state-idle svg {
+    animation: clippy-idle-bounce 3s ease-in-out infinite;
 }
 
-.mascot-volume {
-    transform-origin: center;
-    transition: opacity 320ms ease;
+.clippy-state-thinking svg {
+    animation: clippy-think 1s ease-in-out infinite;
 }
 
-.mascot-band,
-.mascot-blob,
-.mascot-caustic,
-.mascot-inner-glow,
-.mascot-shell-outer,
-.mascot-shell,
-.mascot-shell-rim,
-.mascot-highlight-arc,
-.mascot-specular,
-.mascot-aura {
-    transition:
-        fill 320ms ease,
-        stroke 320ms ease,
-        opacity 320ms ease,
-        fill-opacity 320ms ease,
-        stroke-opacity 320ms ease;
+.clippy-state-happy svg {
+    animation: clippy-idle-bounce 2s ease-in-out infinite;
 }
 
-.mascot-idle .mascot-aura {
-    animation-duration: 6.8s;
+.clippy-state-waving svg {
+    animation: clippy-wave 0.4s ease-in-out 5;
 }
 
-.mascot-inner-glow {
-    filter: blur(7px);
+.clippy-state-error svg {
+    animation: clippy-shake 0.5s ease-in-out 2;
 }
 
-.mascot-blob {
-    transform-origin: center;
-    filter: blur(7px);
+.clippy-state-sleeping svg {
+    animation: clippy-idle-bounce 5s ease-in-out infinite;
+    filter: brightness(0.65) saturate(0.4);
 }
 
-.mascot-blob-a {
-    animation: mascot-blob-drift-a 8s ease-in-out infinite;
+@keyframes clippy-idle-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
 }
 
-.mascot-blob-b {
-    animation: mascot-blob-drift-b 9.5s ease-in-out infinite;
+@keyframes clippy-think {
+    0%, 100% { transform: rotate(-3deg); }
+    50% { transform: rotate(3deg); }
 }
 
-.mascot-blob-c {
-    animation: mascot-blob-drift-c 11s ease-in-out infinite;
+@keyframes clippy-wave {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(8deg); }
+    75% { transform: rotate(-8deg); }
 }
 
-.mascot-caustic {
-    filter: blur(4px);
-    animation: mascot-caustic-drift 8s ease-in-out infinite;
+@keyframes clippy-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
 }
 
-.mascot-shell {
-    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.08));
+/* Thinking dots animation */
+.clippy-thinking-dots circle:nth-child(1) {
+    animation: dot-pulse 1.2s ease-in-out 0s infinite;
+}
+.clippy-thinking-dots circle:nth-child(2) {
+    animation: dot-pulse 1.2s ease-in-out 0.2s infinite;
+}
+.clippy-thinking-dots circle:nth-child(3) {
+    animation: dot-pulse 1.2s ease-in-out 0.4s infinite;
 }
 
-.mascot-highlight-arc {
-    transform-origin: center;
-    animation: mascot-reflection-shift 9s ease-in-out infinite;
+@keyframes dot-pulse {
+    0%, 100% { opacity: 0.3; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.2); }
 }
 
-.mascot-highlight-arc.secondary {
-    animation-duration: 11s;
+/* Waving arm */
+.clippy-wave-arm {
+    transform-origin: 85px 60px;
+    animation: wave-arm 0.4s ease-in-out 5;
 }
 
-.mascot-specular {
-    filter: blur(1px);
+@keyframes wave-arm {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(-20deg); }
 }
 
-.mascot-specular.tiny {
-    filter: blur(0.4px);
+/* Sleeping Z's float up */
+.clippy-sleeping-zs text:nth-child(1) {
+    animation: z-float 2.5s ease-in-out infinite;
+}
+.clippy-sleeping-zs text:nth-child(2) {
+    animation: z-float 2.5s ease-in-out 0.4s infinite;
+}
+.clippy-sleeping-zs text:nth-child(3) {
+    animation: z-float 2.5s ease-in-out 0.8s infinite;
 }
 
-.mascot-error .mascot-aura {
-    animation-duration: 3.6s;
-}
-
-.mascot-sleeping {
-    filter: drop-shadow(0 10px 20px rgba(10, 32, 44, 0.12));
-}
-
-.mascot-thinking .mascot-aura {
-    animation-duration: 4.4s;
-}
-
-.mascot-thinking .mascot-blob-a {
-    animation-duration: 5.8s;
-}
-
-.mascot-thinking .mascot-blob-b {
-    animation-duration: 6.6s;
-}
-
-.mascot-happy .mascot-aura {
-    animation-duration: 5s;
-}
-
-.mascot-happy .mascot-blob-c {
-    animation-duration: 7.8s;
-}
-
-.mascot-error {
-    animation: mascot-error-jitter 240ms linear 5;
-}
-
-.mascot-error .mascot-blob-a {
-    animation-duration: 3.2s;
-}
-
-.mascot-error .mascot-blob-b {
-    animation-duration: 3.8s;
-}
-
-.mascot-sleeping .mascot-aura {
-    animation-duration: 8.6s;
-}
-
-.mascot-sleeping .mascot-blob,
-.mascot-sleeping .mascot-caustic,
-.mascot-sleeping .mascot-highlight-arc {
-    animation-duration: 14s;
-}
-
-@keyframes mascot-aura-breathe {
-    0%,
-    100% {
-        transform: scale(0.98);
-        opacity: 0.72;
-    }
-    50% {
-        transform: scale(1.04);
-        opacity: 1;
-    }
-}
-
-@keyframes mascot-blob-drift-a {
-    0%,
-    100% {
-        transform: translate(-2px, -2px) scale(0.98);
-    }
-    50% {
-        transform: translate(2px, 3px) scale(1.04);
-    }
-}
-
-@keyframes mascot-blob-drift-b {
-    0%,
-    100% {
-        transform: translate(2px, -1px) scale(1);
-    }
-    50% {
-        transform: translate(-3px, 2px) scale(1.05);
-    }
-}
-
-@keyframes mascot-blob-drift-c {
-    0%,
-    100% {
-        transform: translate(0, 1px) scale(1);
-    }
-    50% {
-        transform: translate(2px, -2px) scale(1.06);
-    }
-}
-
-@keyframes mascot-caustic-drift {
-    0%,
-    100% {
-        transform: translateY(0) scaleY(1);
-        opacity: 0.55;
-    }
-    50% {
-        transform: translateY(-2px) scaleY(1.08);
-        opacity: 0.78;
-    }
-}
-
-@keyframes mascot-reflection-shift {
-    0%,
-    100% {
-        transform: rotate(28deg) translateY(0);
-        opacity: 0.82;
-    }
-    50% {
-        transform: rotate(24deg) translateY(1px);
-        opacity: 0.96;
-    }
-}
-
-@keyframes mascot-shadow-drift {
-    0%,
-    100% {
-        transform: scaleX(0.96);
-        opacity: 0.8;
-    }
-    50% {
-        transform: scaleX(1.06);
-        opacity: 0.6;
-    }
-}
-
-@keyframes mascot-error-jitter {
-    0%,
-    100% {
-        transform: translateX(0);
-    }
-    25% {
-        transform: translateX(-1.5px);
-    }
-    75% {
-        transform: translateX(1.5px);
-    }
+@keyframes z-float {
+    0%, 100% { transform: translateY(0); opacity: 0.3; }
+    50% { transform: translateY(-4px); opacity: 0.7; }
 }

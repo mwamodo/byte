@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MascotExpression } from "./MascotCharacter.js";
+import type { MascotExpression } from "./ClippyCharacter.js";
 
 type SwayOffset = { x: number; y: number; rotation: number };
 
@@ -67,6 +67,12 @@ export function useIdleBehavior(expression: MascotExpression): {
                     x: 0,
                     y: Math.sin(time * 0.0032) * 1.2,
                     rotation: Math.sin(time * 0.0018) * 0.4,
+                });
+            } else if (expression === "waving") {
+                setSwayOffset({
+                    x: 0,
+                    y: Math.sin(time * 0.003) * 1.5,
+                    rotation: Math.sin(time * 0.002) * 0.6,
                 });
             } else if (expression === "error") {
                 setSwayOffset({

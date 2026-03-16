@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef } from "react";
-import type { MascotExpression } from "./MascotCharacter.js";
+import type { MascotExpression } from "./ClippyCharacter.js";
 
 type MascotAction =
     | { type: "MESSAGE_START" }
@@ -18,11 +18,11 @@ function mascotReducer(state: MascotExpression, action: MascotAction): MascotExp
         case "ERROR":
             return "error";
         case "DECAY":
-            return state === "happy" || state === "error" ? "idle" : state;
+            return state === "happy" || state === "error" || state === "waving" ? "idle" : state;
         case "SLEEP":
             return state === "idle" ? "sleeping" : state;
         case "WAKE":
-            return state === "sleeping" ? "idle" : state;
+            return state === "sleeping" ? "waving" : state;
         default:
             return state;
     }
@@ -56,9 +56,13 @@ export function useMascotState(): {
         };
     }, []);
 
-    // Auto-decay from happy/error back to idle
+    // Auto-decay from transient states back to idle
     useEffect(() => {
         if (expression === "happy") {
+            const timer = setTimeout(() => dispatch({ type: "DECAY" }), 3000);
+            return () => clearTimeout(timer);
+        }
+        if (expression === "waving") {
             const timer = setTimeout(() => dispatch({ type: "DECAY" }), 3000);
             return () => clearTimeout(timer);
         }
