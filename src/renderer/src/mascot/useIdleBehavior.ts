@@ -46,16 +46,33 @@ export function useIdleBehavior(expression: MascotExpression): {
         (time: number) => {
             if (expression === "idle") {
                 setSwayOffset({
-                    x: Math.sin(time * 0.001) * 2,
-                    y: 0,
-                    rotation: Math.sin(time * 0.0008) * 1.5,
+                    x: Math.sin(time * 0.00085) * 1.5,
+                    y: Math.sin(time * 0.0012) * 1.8,
+                    rotation: Math.sin(time * 0.00075) * 1.2,
                 });
             } else if (expression === "thinking") {
-                // Bob up and down while thinking
+                setSwayOffset({
+                    x: Math.sin(time * 0.0024) * 0.8,
+                    y: Math.sin(time * 0.0046) * 3.2,
+                    rotation: Math.sin(time * 0.0028) * 0.8,
+                });
+            } else if (expression === "sleeping") {
+                setSwayOffset({
+                    x: Math.sin(time * 0.00045) * 0.9,
+                    y: Math.sin(time * 0.0007) * 1.2,
+                    rotation: Math.sin(time * 0.00035) * 0.5,
+                });
+            } else if (expression === "happy") {
                 setSwayOffset({
                     x: 0,
-                    y: Math.sin(time * 0.005) * 4,
-                    rotation: 0,
+                    y: Math.sin(time * 0.0032) * 1.2,
+                    rotation: Math.sin(time * 0.0018) * 0.4,
+                });
+            } else if (expression === "error") {
+                setSwayOffset({
+                    x: Math.sin(time * 0.018) * 1.4,
+                    y: Math.sin(time * 0.007) * 0.8,
+                    rotation: Math.sin(time * 0.015) * 0.9,
                 });
             } else {
                 setSwayOffset({ x: 0, y: 0, rotation: 0 });

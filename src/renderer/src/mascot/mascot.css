@@ -1,74 +1,234 @@
-/* Mascot SVG animations */
-
 .mascot-svg {
     overflow: visible;
+    transform-origin: center;
+    filter: drop-shadow(0 12px 28px rgba(10, 32, 44, 0.16));
+    transition: filter 280ms ease, transform 280ms ease;
 }
 
-.mascot-pupil {
-    transition: cx 80ms ease-out, cy 80ms ease-out;
+.mascot-shadow {
+    fill: rgba(14, 24, 33, 0.14);
+    filter: blur(6px);
+    transform-origin: center;
+    animation: mascot-shadow-drift 6s ease-in-out infinite;
 }
 
-.mascot-mouth {
-    transition: d 200ms ease-in-out;
+.mascot-aura {
+    transform-origin: center;
+    animation: mascot-aura-breathe 6.4s ease-in-out infinite;
+    filter: blur(16px);
 }
 
-/* Thinking: pulsing glow */
-.mascot-thinking {
-    animation: mascot-pulse 1.8s ease-in-out infinite;
+.mascot-volume {
+    transform-origin: center;
+    transition: opacity 320ms ease;
 }
 
-@keyframes mascot-pulse {
-    0%, 100% {
-        filter: drop-shadow(0 0 6px rgba(255, 180, 80, 0.3));
-    }
-    50% {
-        filter: drop-shadow(0 0 14px rgba(255, 180, 80, 0.7));
-    }
+.mascot-band,
+.mascot-blob,
+.mascot-caustic,
+.mascot-inner-glow,
+.mascot-shell-outer,
+.mascot-shell,
+.mascot-shell-rim,
+.mascot-highlight-arc,
+.mascot-specular,
+.mascot-aura {
+    transition:
+        fill 320ms ease,
+        stroke 320ms ease,
+        opacity 320ms ease,
+        fill-opacity 320ms ease,
+        stroke-opacity 320ms ease;
 }
 
-/* Error: shake side to side */
+.mascot-idle .mascot-aura {
+    animation-duration: 6.8s;
+}
+
+.mascot-inner-glow {
+    filter: blur(7px);
+}
+
+.mascot-blob {
+    transform-origin: center;
+    filter: blur(7px);
+}
+
+.mascot-blob-a {
+    animation: mascot-blob-drift-a 8s ease-in-out infinite;
+}
+
+.mascot-blob-b {
+    animation: mascot-blob-drift-b 9.5s ease-in-out infinite;
+}
+
+.mascot-blob-c {
+    animation: mascot-blob-drift-c 11s ease-in-out infinite;
+}
+
+.mascot-caustic {
+    filter: blur(4px);
+    animation: mascot-caustic-drift 8s ease-in-out infinite;
+}
+
+.mascot-shell {
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.08));
+}
+
+.mascot-highlight-arc {
+    transform-origin: center;
+    animation: mascot-reflection-shift 9s ease-in-out infinite;
+}
+
+.mascot-highlight-arc.secondary {
+    animation-duration: 11s;
+}
+
+.mascot-specular {
+    filter: blur(1px);
+}
+
+.mascot-specular.tiny {
+    filter: blur(0.4px);
+}
+
+.mascot-error .mascot-aura {
+    animation-duration: 3.6s;
+}
+
+.mascot-sleeping {
+    filter: drop-shadow(0 10px 20px rgba(10, 32, 44, 0.12));
+}
+
+.mascot-thinking .mascot-aura {
+    animation-duration: 4.4s;
+}
+
+.mascot-thinking .mascot-blob-a {
+    animation-duration: 5.8s;
+}
+
+.mascot-thinking .mascot-blob-b {
+    animation-duration: 6.6s;
+}
+
+.mascot-happy .mascot-aura {
+    animation-duration: 5s;
+}
+
+.mascot-happy .mascot-blob-c {
+    animation-duration: 7.8s;
+}
+
 .mascot-error {
-    animation: mascot-shake 0.4s ease-in-out 3;
+    animation: mascot-error-jitter 240ms linear 5;
 }
 
-@keyframes mascot-shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-4px); }
-    75% { transform: translateX(4px); }
+.mascot-error .mascot-blob-a {
+    animation-duration: 3.2s;
 }
 
-/* Happy: bounce scale */
-.mascot-happy {
-    animation: mascot-bounce 0.5s ease-out 1;
+.mascot-error .mascot-blob-b {
+    animation-duration: 3.8s;
 }
 
-@keyframes mascot-bounce {
-    0% { transform: scale(1); }
-    40% { transform: scale(1.12); }
-    70% { transform: scale(0.95); }
-    100% { transform: scale(1); }
+.mascot-sleeping .mascot-aura {
+    animation-duration: 8.6s;
 }
 
-/* Sleeping ZZZs float up */
-.mascot-zzz text {
-    animation: mascot-zzz-float 2.5s ease-in-out infinite;
+.mascot-sleeping .mascot-blob,
+.mascot-sleeping .mascot-caustic,
+.mascot-sleeping .mascot-highlight-arc {
+    animation-duration: 14s;
 }
 
-.mascot-zzz text:nth-child(2) {
-    animation-delay: 0.5s;
-}
-
-.mascot-zzz text:nth-child(3) {
-    animation-delay: 1s;
-}
-
-@keyframes mascot-zzz-float {
-    0%, 100% {
-        opacity: 0.15;
-        transform: translateY(0);
+@keyframes mascot-aura-breathe {
+    0%,
+    100% {
+        transform: scale(0.98);
+        opacity: 0.72;
     }
     50% {
+        transform: scale(1.04);
+        opacity: 1;
+    }
+}
+
+@keyframes mascot-blob-drift-a {
+    0%,
+    100% {
+        transform: translate(-2px, -2px) scale(0.98);
+    }
+    50% {
+        transform: translate(2px, 3px) scale(1.04);
+    }
+}
+
+@keyframes mascot-blob-drift-b {
+    0%,
+    100% {
+        transform: translate(2px, -1px) scale(1);
+    }
+    50% {
+        transform: translate(-3px, 2px) scale(1.05);
+    }
+}
+
+@keyframes mascot-blob-drift-c {
+    0%,
+    100% {
+        transform: translate(0, 1px) scale(1);
+    }
+    50% {
+        transform: translate(2px, -2px) scale(1.06);
+    }
+}
+
+@keyframes mascot-caustic-drift {
+    0%,
+    100% {
+        transform: translateY(0) scaleY(1);
+        opacity: 0.55;
+    }
+    50% {
+        transform: translateY(-2px) scaleY(1.08);
+        opacity: 0.78;
+    }
+}
+
+@keyframes mascot-reflection-shift {
+    0%,
+    100% {
+        transform: rotate(28deg) translateY(0);
+        opacity: 0.82;
+    }
+    50% {
+        transform: rotate(24deg) translateY(1px);
+        opacity: 0.96;
+    }
+}
+
+@keyframes mascot-shadow-drift {
+    0%,
+    100% {
+        transform: scaleX(0.96);
+        opacity: 0.8;
+    }
+    50% {
+        transform: scaleX(1.06);
         opacity: 0.6;
-        transform: translateY(-6px);
+    }
+}
+
+@keyframes mascot-error-jitter {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    25% {
+        transform: translateX(-1.5px);
+    }
+    75% {
+        transform: translateX(1.5px);
     }
 }

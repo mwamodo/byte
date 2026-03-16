@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 
 import type { DesktopAccountPosition } from "../config.js";
 
-export const MASCOT_WINDOW_SIZE = { width: 108, height: 108 };
+export const MASCOT_WINDOW_SIZE = { width: 216, height: 216 };
 export const CHAT_WINDOW_SIZE = { width: 420, height: 620 };
 export const COLLAPSED_WINDOW_SIZE = MASCOT_WINDOW_SIZE;
 
@@ -24,6 +24,7 @@ function loadRenderer(window: BrowserWindow, view: string): void {
 function createBaseWindow(options: {
     bounds: { height: number; width: number; x: number; y: number };
     movable: boolean;
+    vibrancy?: "sidebar";
 }): BrowserWindow {
     const window = new BrowserWindow({
         ...options.bounds,
@@ -35,8 +36,8 @@ function createBaseWindow(options: {
         movable: options.movable,
         alwaysOnTop: true,
         skipTaskbar: true,
-        vibrancy: "sidebar",
-        visualEffectState: "active",
+        vibrancy: options.vibrancy,
+        visualEffectState: options.vibrancy ? "active" : undefined,
         trafficLightPosition: { x: -100, y: -100 },
         webPreferences: {
             preload: join(DESKTOP_DIR, "preload.js"),
@@ -75,7 +76,7 @@ export function createChatWindow(options: {
         width: CHAT_WINDOW_SIZE.width,
     });
 
-    const window = createBaseWindow({ bounds, movable: false });
+    const window = createBaseWindow({ bounds, movable: false, vibrancy: "sidebar" });
     loadRenderer(window, "chat");
     return window;
 }
