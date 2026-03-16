@@ -1,5 +1,6 @@
 import type {
     ByteAgentStatusPayload,
+    ByteCursorPositionPayload,
     ByteDesktopConfigPayload,
     ByteErrorPayload,
     ByteMessageChunkPayload,
@@ -42,6 +43,9 @@ export function createDesktopPreloadApi(ipc: IpcRendererLike) {
         onMessageStart: (
             listener: (payload: ByteMessageStartPayload) => void,
         ): (() => void) => subscribe(ipc, "byte:message-start", listener),
+        onCursorPosition: (
+            listener: (payload: ByteCursorPositionPayload) => void,
+        ): (() => void) => subscribe(ipc, "byte:cursor-position", listener),
         onVisibility: (
             listener: (payload: ByteVisibilityPayload) => void,
         ): (() => void) => subscribe(ipc, "byte:visibility", listener),

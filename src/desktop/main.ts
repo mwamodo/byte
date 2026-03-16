@@ -1,4 +1,4 @@
-import { app, globalShortcut, ipcMain, type BrowserWindow, type IpcMain } from "electron";
+import type { BrowserWindow, IpcMain } from "electron";
 
 import {
     DesktopChannel,
@@ -11,8 +11,6 @@ import type {
     BytePromptRequest,
     BytePromptResult,
 } from "./ipc.js";
-import { createDesktopTray } from "./tray.js";
-import { resizeAnchoredWindow } from "./window.js";
 
 type BrowserWindowLike = Pick<BrowserWindow, "hide" | "isDestroyed" | "isVisible" | "show" | "webContents">;
 type IpcMainLike = Pick<IpcMain, "handle">;
@@ -52,12 +50,9 @@ export function registerDesktopIpcHandlers(options: {
         emitVisibility(window, false);
     });
 
-    ipc.handle("byte:toggle", async () => {
-        toggleWindow(window);
-    });
-
     ipc.handle("byte:resize", async (_event, payload: { height: number; width: number }) => {
         if ("setBounds" in window) {
+            const { resizeAnchoredWindow } = await import("./window.js");
             resizeAnchoredWindow(window as BrowserWindow, {
                 height: payload.height,
                 position: account.position,
@@ -92,32 +87,73 @@ export function toggleWindow(window: BrowserWindowLike): void {
 export async function startDesktopMain(options: {
     account: ResolvedDesktopAccount;
     channel: DesktopChannel;
-    window: BrowserWindow;
+    chatWindow: BrowserWindow;
+    mascotWindow: BrowserWindow;
 }): Promise<void> {
-    const { account, channel, window } = options;
+    const { app, globalShortcut, ipcMain } = await import("electron");
+    const { createDesktopTray } = await import("./tray.js");
+    const { positionChatNearMascot } = await import("./window.js");
+    const { account, channel, chatWindow, mascotWindow } = options;
 
     registerDesktopIpcHandlers({
         account,
         channel,
         ipc: ipcMain,
-        window,
+        window: chatWindow,
+    });
+
+    function showChat(): void {
+        if (!chatWindow.isVisible()) {
+            positionChatNearMascot(mascotWindow, chatWindow);
+        }
+        toggleWindow(chatWindow);
+    }
+
+    ipcMain.handle("byte:toggle", async () => {
+        showChat();
+    });
+
+    // Forward expression-relevant events to mascot
+    channel.subscribe((event) => {
+        if (mascotWindow.isDestroyed()) return;
+        if (event.type === "message-start" || event.type === "message-done" || event.type === "error") {
+            mascotWindow.webContents.send(`byte:${event.type}`, event);
+        }
     });
 
     const tray = createDesktopTray({
         model: channel.modelName,
         onQuit: () => app.quit(),
-        onToggle: () => toggleWindow(window),
+        onToggle: () => showChat(),
     });
 
     globalShortcut.register(account.hotkey, () => {
-        toggleWindow(window);
+        showChat();
     });
 
-    window.on("show", () => emitVisibility(window, true));
-    window.on("hide", () => emitVisibility(window, false));
+    // Start cursor tracking for eye-follow
+    const { startCursorTracking } = await import("./cursor.js");
+    const cursorTracking = startCursorTracking(mascotWindow);
+
+    // Start autonomous roaming
+    const { startRoaming } = await import("./roaming.js");
+    const roaming = startRoaming(mascotWindow);
+
+    mascotWindow.show();
+    chatWindow.on("show", () => {
+        emitVisibility(chatWindow, true);
+        roaming.pause();
+    });
+    chatWindow.on("hide", () => {
+        emitVisibility(chatWindow, false);
+        roaming.resume();
+    });
+
     app.on("before-quit", () => {
         tray.destroy();
         globalShortcut.unregisterAll();
+        cursorTracking.stop();
+        roaming.stop();
     });
 }
 

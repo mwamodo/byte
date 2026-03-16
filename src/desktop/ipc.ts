@@ -23,3 +23,12 @@ export type ByteMessageStartPayload = Extract<DesktopStreamEvent, { type: "messa
 export type ByteMessageChunkPayload = Extract<DesktopStreamEvent, { type: "message-chunk" }>;
 export type ByteMessageDonePayload = Extract<DesktopStreamEvent, { type: "message-done" }>;
 export type ByteErrorPayload = Extract<DesktopStreamEvent, { type: "error" }>;
+
+export type ByteCursorPositionPayload = {
+    x: number;
+    y: number;
+    windowX: number;
+    windowY: number;
+    windowWidth: number;
+    windowHeight: number;
+};

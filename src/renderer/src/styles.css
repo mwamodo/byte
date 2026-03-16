@@ -30,9 +30,23 @@ textarea {
     width: 100%;
     height: 100%;
     display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
-    padding: 12px;
+}
+
+/* Mascot window: draggable character */
+.mascot-view {
+    -webkit-app-region: drag;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    border-radius: 30px;
+    cursor: grab;
+    user-select: none;
+}
+
+/* Chat window: fills the entire window */
+.chat-view {
+    align-items: stretch;
+    justify-content: stretch;
 }
 
 .chat-shell {
@@ -189,14 +203,9 @@ textarea {
 }
 
 .ghost-button,
-.primary-button,
-.mascot-button {
+.primary-button {
     border: 0;
     cursor: pointer;
-}
-
-.ghost-button,
-.primary-button {
     border-radius: 999px;
     padding: 10px 16px;
 }
@@ -216,74 +225,9 @@ textarea {
     opacity: 0.6;
 }
 
-.mascot-button {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    background: transparent;
-}
-
-.mascot {
-    width: 108px;
-    height: 108px;
-    display: grid;
-    place-items: center;
-    border-radius: 30px;
-    background:
-        radial-gradient(circle at top left, rgba(255, 203, 128, 0.9), rgba(255, 142, 87, 0.76)),
-        linear-gradient(180deg, rgba(23, 26, 28, 0.92), rgba(14, 16, 18, 0.96));
-    box-shadow:
-        0 18px 48px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-
-.mascot.thinking {
-    animation: bob 1.2s ease-in-out infinite;
-}
-
-.mascot-face {
-    width: 54px;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px 12px;
-    justify-items: center;
-}
-
-.eye {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: #19110d;
-}
-
-.mouth {
-    width: 28px;
-    height: 10px;
-    grid-column: 1 / span 2;
-    border-bottom: 4px solid #19110d;
-    border-radius: 0 0 18px 18px;
-}
-
-.mascot-label {
-    padding: 7px 14px;
-    border-radius: 999px;
-    color: #f7f2e8;
-    background: rgba(16, 18, 20, 0.75);
-    backdrop-filter: blur(12px);
-}
-
 @keyframes blink {
     50% {
         opacity: 0;
     }
 }
 
-@keyframes bob {
-    50% {
-        transform: translateY(-6px);
-    }
-}

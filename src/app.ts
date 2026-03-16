@@ -4,7 +4,7 @@ import process from "node:process";
 import { initializeAgents } from "./agents.js";
 import { loadMultiAgentGatewayConfig } from "./config.js";
 import { startDesktopMain } from "./desktop/main.js";
-import { createDesktopWindow } from "./desktop/window.js";
+import { createChatWindow, createMascotWindow } from "./desktop/window.js";
 import { ensureRuntimeDirs } from "./runtime.js";
 import {
     createUnifiedGatewayRuntime,
@@ -46,34 +46,42 @@ async function main(): Promise<void> {
         });
     }
 
-    let window: BrowserWindow | undefined;
+    let mascotWindow: BrowserWindow | undefined;
     if (desktopAccount) {
         const desktopChannel = gatewayRuntime.gateway.getDesktopChannel(desktopAccount.accountId);
         if (!desktopChannel) {
             throw new Error(`Desktop channel "${desktopAccount.accountId}" was not created.`);
         }
 
-        const desktopWindow = createDesktopWindow({ position: desktopAccount.position });
-        desktopWindow.webContents.once("did-finish-load", () => {
-            if (desktopChannel.modelName) {
-                desktopWindow.webContents.send("byte:agent-status", {
-                    accountId: desktopAccount.accountId,
-                    model: desktopChannel.modelName,
+        const mascot = createMascotWindow({ position: desktopAccount.position });
+        const chat = createChatWindow({ position: desktopAccount.position });
+
+        function sendInitialState(window: BrowserWindow): void {
+            if (desktopChannel!.modelName) {
+                window.webContents.send("byte:agent-status", {
+                    accountId: desktopAccount!.accountId,
+                    model: desktopChannel!.modelName,
                     status: "ready",
                     type: "agent-status",
                 });
             }
-            desktopWindow.webContents.send("byte:visibility", {
-                visible: desktopWindow.isVisible(),
+        }
+
+        mascot.webContents.once("did-finish-load", () => sendInitialState(mascot));
+        chat.webContents.once("did-finish-load", () => {
+            sendInitialState(chat);
+            chat.webContents.send("byte:visibility", {
+                visible: chat.isVisible(),
             });
         });
 
         await startDesktopMain({
             account: desktopAccount,
             channel: desktopChannel,
-            window: desktopWindow,
+            chatWindow: chat,
+            mascotWindow: mascot,
         });
-        window = desktopWindow;
+        mascotWindow = mascot;
     }
 
     app.on("window-all-closed", () => {
@@ -81,8 +89,8 @@ async function main(): Promise<void> {
     });
 
     app.on("activate", () => {
-        if (window && !window.isVisible()) {
-            window.show();
+        if (mascotWindow && !mascotWindow.isVisible()) {
+            mascotWindow.show();
         }
     });
 
