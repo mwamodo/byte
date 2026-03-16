@@ -1,0 +1,10 @@
+appId: com.byte.desktop
+productName: Byte
+directories:
+  output: release
+files:
+  - dist/**
+mac:
+  category: public.app-category.productivity
+  target:
+    - dmg

@@ -25,6 +25,12 @@ type DesktopAccountConfig = {
     position?: string;
 };
 
+export type DesktopAccountPosition =
+    | "bottom-right"
+    | "bottom-left"
+    | "top-right"
+    | "top-left";
+
 type AgentDefinition = {
     id: string;
     workspace?: string;
@@ -103,11 +109,17 @@ export type ResolvedTelegramAccount = {
     allowFrom: number[];
     replyDebounceMs: number;
 };
+export type ResolvedDesktopAccount = {
+    accountId: string;
+    hotkey: string;
+    position: DesktopAccountPosition;
+};
 export type ResolvedBinding = { agentId: string; channel: string; accountId: string };
 
 export type MultiAgentGatewayConfig = {
     agents: ResolvedAgent[];
-    accounts: ResolvedTelegramAccount[];
+    telegramAccounts: ResolvedTelegramAccount[];
+    desktopAccounts: ResolvedDesktopAccount[];
     bindings: ResolvedBinding[];
 };
 
@@ -126,6 +138,8 @@ export const TELEGRAM_SESSION_INDEX_PATH = resolve(
     RUNTIME_DIR,
     "telegram-session-index.json",
 );
+export const DEFAULT_DESKTOP_HOTKEY = "CommandOrControl+Shift+Space";
+export const DEFAULT_DESKTOP_POSITION: DesktopAccountPosition = "bottom-right";
 
 function injectResumeSentinel(): void {
     const idx = process.argv.indexOf("--resume");
@@ -159,16 +173,6 @@ export function loadCliConfig(): CliConfig {
             gateway: { type: "boolean" },
         },
     });
-
-    if (values.app) {
-        console.error("byte --app is not implemented yet. Desktop support is planned for a future phase.");
-        process.exit(1);
-    }
-
-    if (values.gateway) {
-        console.error("byte --gateway is not implemented yet. Gateway support is planned for a future phase.");
-        process.exit(1);
-    }
 
     const provider = values.provider ?? runtimeConfig.provider;
     const modelId = values.model ?? runtimeConfig.model;
@@ -267,13 +271,8 @@ export function loadMultiAgentGatewayConfig(): MultiAgentGatewayConfig {
     const apiKeys = runtimeConfig.apiKeys;
 
     if (!runtimeConfig.agents) {
-        // Legacy single-agent mode: synthesize from flat telegram config
         validateConfiguredModel(provider, modelId);
 
-        const botToken = readRequiredString(
-            runtimeConfig.telegram?.botToken,
-            'Runtime config key "telegram.botToken"',
-        );
         const agent: ResolvedAgent = {
             id: "byte",
             workspace: WORKSPACE_DIR,
@@ -285,23 +284,46 @@ export function loadMultiAgentGatewayConfig(): MultiAgentGatewayConfig {
             toolSummaryMode,
             apiKeys,
         };
-        const account: ResolvedTelegramAccount = {
-            accountId: "default",
-            botToken,
-            allowFrom: runtimeConfig.telegram?.allowFrom ?? [],
-            replyDebounceMs: resolveInteger(
-                runtimeConfig.telegram?.replyDebounceMs,
-                'Runtime config key "telegram.replyDebounceMs"',
-                { minimum: 0 },
-                200,
-            ),
-        };
-        const binding: ResolvedBinding = {
-            agentId: "byte",
-            channel: "telegram",
-            accountId: "default",
-        };
-        return { agents: [agent], accounts: [account], bindings: [binding] };
+
+        const telegramAccounts: ResolvedTelegramAccount[] = [];
+        const desktopAccounts: ResolvedDesktopAccount[] = [
+            {
+                accountId: "default",
+                hotkey: DEFAULT_DESKTOP_HOTKEY,
+                position: DEFAULT_DESKTOP_POSITION,
+            },
+        ];
+        const bindings: ResolvedBinding[] = [
+            {
+                agentId: "byte",
+                channel: "desktop",
+                accountId: "default",
+            },
+        ];
+
+        if (runtimeConfig.telegram?.botToken) {
+            telegramAccounts.push({
+                accountId: "default",
+                botToken: readRequiredString(
+                    runtimeConfig.telegram.botToken,
+                    'Runtime config key "telegram.botToken"',
+                ),
+                allowFrom: runtimeConfig.telegram.allowFrom ?? [],
+                replyDebounceMs: resolveInteger(
+                    runtimeConfig.telegram.replyDebounceMs,
+                    'Runtime config key "telegram.replyDebounceMs"',
+                    { minimum: 0 },
+                    200,
+                ),
+            });
+            bindings.push({
+                agentId: "byte",
+                channel: "telegram",
+                accountId: "default",
+            });
+        }
+
+        return { agents: [agent], telegramAccounts, desktopAccounts, bindings };
     }
 
     // Multi-agent mode
@@ -346,12 +368,10 @@ export function loadMultiAgentGatewayConfig(): MultiAgentGatewayConfig {
         seenAgentIds.add(agent.id);
     }
 
-    const telegramAccounts = runtimeConfig.channels?.telegram?.accounts;
-    if (!telegramAccounts || Object.keys(telegramAccounts).length === 0) {
-        throw new Error('Multi-agent config requires "channels.telegram.accounts" with at least one account.');
-    }
+    const telegramAccountsRaw = runtimeConfig.channels?.telegram?.accounts ?? {};
+    const desktopAccountsRaw = runtimeConfig.channels?.desktop?.accounts ?? {};
 
-    const accounts: ResolvedTelegramAccount[] = Object.entries(telegramAccounts).map(
+    const telegramAccounts: ResolvedTelegramAccount[] = Object.entries(telegramAccountsRaw).map(
         ([accountId, acct]) => {
             if (!acct.botToken || typeof acct.botToken !== "string") {
                 throw new Error(`Telegram account "${accountId}" must have a string "botToken".`);
@@ -369,6 +389,13 @@ export function loadMultiAgentGatewayConfig(): MultiAgentGatewayConfig {
             };
         },
     );
+    const desktopAccounts: ResolvedDesktopAccount[] = Object.entries(desktopAccountsRaw).map(
+        ([accountId, acct]) => ({
+            accountId,
+            hotkey: acct.hotkey?.trim() || DEFAULT_DESKTOP_HOTKEY,
+            position: resolveDesktopPosition(acct.position, accountId),
+        }),
+    );
 
     const bindings: ResolvedBinding[] = (runtimeConfig.bindings ?? []).map((b) => {
         if (!b.agentId || !b.match?.channel || !b.match?.accountId) {
@@ -377,14 +404,23 @@ export function loadMultiAgentGatewayConfig(): MultiAgentGatewayConfig {
         if (!seenAgentIds.has(b.agentId)) {
             throw new Error(`Binding references unknown agent "${b.agentId}".`);
         }
-        const accountExists = accounts.some((a) => a.accountId === b.match.accountId);
-        if (!accountExists) {
-            throw new Error(`Binding references unknown account "${b.match.accountId}".`);
+        if (b.match.channel === "telegram") {
+            const accountExists = telegramAccounts.some((a) => a.accountId === b.match.accountId);
+            if (!accountExists) {
+                throw new Error(`Binding references unknown telegram account "${b.match.accountId}".`);
+            }
+        } else if (b.match.channel === "desktop") {
+            const accountExists = desktopAccounts.some((a) => a.accountId === b.match.accountId);
+            if (!accountExists) {
+                throw new Error(`Binding references unknown desktop account "${b.match.accountId}".`);
+            }
+        } else {
+            throw new Error(`Unsupported binding channel "${b.match.channel}".`);
         }
         return { agentId: b.agentId, channel: b.match.channel, accountId: b.match.accountId };
     });
 
-    return { agents, accounts, bindings };
+    return { agents, telegramAccounts, desktopAccounts, bindings };
 }
 
 export function printHelp(): void {
@@ -417,8 +453,8 @@ Options:
   --tool-summaries    off | compact
   --interactive       Compatibility alias for TUI mode; cannot be combined with a prompt
   --list-models       Print currently available models and exit
-  --app               Launch the Electron desktop app (not yet implemented)
-  --gateway           Start the headless gateway (not yet implemented)
+  --app               Launch the Electron desktop app
+  --gateway           Start the headless Telegram gateway
   -h, --help          Show this help text
 
 Runtime config:
@@ -655,6 +691,26 @@ function resolveInteger(
     }
 
     return parsed;
+}
+
+function resolveDesktopPosition(
+    rawPosition: string | undefined,
+    accountId: string,
+): DesktopAccountPosition {
+    switch (rawPosition) {
+        case undefined:
+        case "":
+            return DEFAULT_DESKTOP_POSITION;
+        case "bottom-right":
+        case "bottom-left":
+        case "top-right":
+        case "top-left":
+            return rawPosition;
+        default:
+            throw new Error(
+                `Desktop account "${accountId}" position must be one of top-left, top-right, bottom-left, or bottom-right.`,
+            );
+    }
 }
 
 function readOptionalString(source: object, key: string): string | undefined {

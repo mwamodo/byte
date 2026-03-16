@@ -1,6 +1,6 @@
 # Byte
 
-Byte is a macOS AI desktop assistant with three interfaces: a desktop overlay (Electron), a Telegram gateway, and a CLI. All three share a unified multi-agent runtime built on pi-mono.
+Byte is a macOS AI desktop assistant whose primary distribution is the Electron app. When `Byte.app` launches, it runs the desktop overlay and any configured Telegram bots in the same process, while the CLI remains a separate Node.js entrypoint for terminal use.
 
 ## Quick start
 
@@ -10,6 +10,7 @@ npm install
 npm run dev                              # Launch TUI (interactive mode)
 npm run dev -- "list files in this dir"  # Print mode (one-shot)
 npm run dev -- --list-models             # Show available models
+npm run dev:app                          # Launch Electron desktop app in dev mode
 npm run dev -- --gateway                 # Start headless Telegram gateway
 ```
 
@@ -22,6 +23,7 @@ npm run build
 npm link
 byte                                     # TUI mode
 byte "explain this error"                # Print mode
+byte --app                               # Launch the Electron app and configured channels
 byte --gateway                           # Headless Telegram gateway
 byte --help                              # Show all options
 ```
@@ -35,7 +37,7 @@ byte --help                              # Show all options
 | `~/.byte/agent/models.json` | Cached model registry |
 | `~/.byte/workspace/` | Workspace files: `AGENTS.md`, `IDENTITY.md`, `USER.md`, `TOOLS.md` |
 | `~/.byte/sessions/cli/` | Persisted CLI sessions |
-| `~/.byte/sessions/<agent>/` | Per-agent sessions (gateway mode) |
+| `~/.byte/sessions/<agent>/` | Per-agent channel sessions (`desktop-session-index.json`, `telegram-session-index.json`) |
 
 ### CLI options
 
@@ -53,9 +55,45 @@ byte --prompt-mode <mode>     full | minimal | none
 byte --thinking <level>       off | low | medium | high
 byte --tool-summaries <mode>  off | compact
 byte --gateway                Start headless Telegram gateway
-byte --app                    (not yet implemented)
+byte --app                    Launch the Electron app (desktop + configured channels)
 byte --help                   Show help
 ```
+
+### Desktop overlay
+
+`byte --app` starts the Electron app and boots all configured channels in one process. If a desktop binding exists, it opens the floating widget window; if Telegram accounts are configured, it also starts the Telegram bots. The app reads `channels.desktop.accounts`, `channels.telegram.accounts`, and `bindings` from `~/.byte/byte.config.json`.
+
+Desktop account config fields:
+
+| Key | Required | Default | Notes |
+|---|---|---|---|
+| `hotkey` | No | `CommandOrControl+Shift+Space` | Electron global shortcut string |
+| `position` | No | `bottom-right` | One of `top-left`, `top-right`, `bottom-left`, `bottom-right` |
+
+Example:
+
+```json
+{
+  "channels": {
+    "desktop": {
+      "accounts": {
+        "byte": {
+          "hotkey": "Control+Option+Command+Space",
+          "position": "bottom-left"
+        }
+      }
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "byte",
+      "match": { "channel": "desktop", "accountId": "byte" }
+    }
+  ]
+}
+```
+
+Important: the renderer uses the configured desktop `accountId` from the main process. Do not assume `default` unless your config actually defines a desktop account named `default`.
 
 ### Telegram gateway
 
@@ -84,9 +122,8 @@ The gateway supports:
 
 ### Current non-goals
 
-- Electron desktop app (`--app`) — Phase 3
-- Desktop context injection — Phase 5
-- Streaming UI, packaging — Phase 6–7
+- Desktop context injection
+- Multiple desktop windows / multiple active desktop accounts at once
 
 ---
 
@@ -98,19 +135,6 @@ The gateway supports:
 **Config file**: `~/.byte/byte.config.json`
 **Package name**: `byte`
 
-## Decisions locked in
-
-| Decision | Answer | Rationale |
-|---|---|---|
-| Product name | Byte | Short, memorable, `byte` is fast to type |
-| Repo strategy | Fresh repo, import pi-mono SDK packages | Clean start, no pi-claw baggage |
-| Business context | Personal tool first, productize later | No premature pricing/packaging work |
-| MVP scope | Desktop + Telegram + CLI, all three | Full vision from the start |
-| Auth/onboarding | pi-mono `/login` and `/model` flows | Multi-provider out of the box, no custom auth |
-| CLI priority | Essential — daily driver | CLI ships in Phase 1, not an afterthought |
-| Default agents | `byte` (desktop) + `pi` (telegram) | Created on first run |
-| macOS only | Yes, Electron but target macOS exclusively | Vibrancy, AppleScript context, native feel |
-
 ## Architecture overview
 
 ### Three entrypoints, one codebase
@@ -118,11 +142,11 @@ The gateway supports:
 ```
 byte                          → CLI (TUI mode or print mode)
 byte "explain this error"     → CLI (print mode, one-shot)
-byte --app                    → Electron desktop app + Telegram gateway
+byte --app                    → Electron app with desktop + configured channels
 byte --gateway                → Headless Telegram gateway (no Electron window)
 ```
 
-The Electron app is the primary distribution. When the `.dmg` app launches, it starts the desktop overlay AND the Telegram gateway in the same process. The CLI is a separate Node.js entrypoint that can run independently — it doesn't need Electron.
+The Electron app is the primary product: when `Byte.app` launches, it runs the desktop overlay and any configured Telegram channels in the same process. The CLI is a separate Node.js entrypoint that does not import Electron during normal terminal use; `byte --gateway` stays headless Telegram-only, and `byte --app` remains available as a convenience way to launch the app during development.
 
 ### Unified runtime
 
@@ -177,15 +201,13 @@ Directly adapted from pi-claw's multi-agent system. The config defines agents, c
 
 ### Channel abstraction
 
-Each channel type implements the same pattern: receive user input, route to the bound agent, stream the response back. The desktop channel adds macOS context injection. The Telegram channel carries over from pi-claw unchanged.
+Each channel type implements the same pattern: receive user input, route to the bound agent, stream the response back. The desktop channel currently provides Electron IPC and persistent per-account desktop sessions. macOS context injection is planned later.
 
 ```
 Channel interface:
   - receive(message) → route to agent
   - stream(response) → deliver to user
-  - Desktop adds: gather context before each prompt
-
-DesktopChannel   — Electron IPC, overlay window, macOS context engine
+DesktopChannel   — Electron IPC, overlay window, per-account desktop sessions
 TelegramChannel  — grammY bot, long polling, message editing/drafts
 CLIChannel       — stdin/stdout, TUI or print mode (uses pi-mono InteractiveMode)
 ```
@@ -257,14 +279,19 @@ byte/
 │   │   └── registry.ts           # Telegram session registry (index-based persistence)
 │   │
 │   ├── desktop/                  # Phase 3
-│   │   ├── main.ts               # Electron main process setup
-│   │   ├── preload.ts            # Context bridge for renderer
+│   │   ├── ipc.ts                # Desktop IPC payload types
+│   │   ├── main.ts               # Electron main process + IPC handlers
+│   │   ├── preload.ts            # Context bridge bootstrap
+│   │   ├── preload-api.ts        # Typed preload API surface
 │   │   ├── tray.ts               # System tray setup
 │   │   └── window.ts             # Overlay window creation
 │   │
-│   └── renderer/                 # Phase 3
-│       ├── index.html            # Overlay UI
-│       └── styles.css            # (optional, could be inline)
+│   └── renderer/
+│       ├── index.html            # Vite renderer entry
+│       └── src/
+│           ├── App.tsx           # Overlay UI
+│           ├── main.tsx          # React bootstrap
+│           └── styles.css        # Overlay styles
 │
 ├── test/
 │   ├── config.test.ts
@@ -360,28 +387,27 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 
 ### Phase 3: Desktop channel foundation
 
-**Goal**: `byte --app` opens an Electron window with the overlay UI. The overlay can send a prompt and receive a response via IPC. No context engine yet — just a floating chat panel wired to an agent.
+**Status**: implemented
 
-**Tasks**:
-1. `npm install electron` as a dependency, `electron-builder` as devDependency
-2. Write `src/desktop/window.ts` — frameless, transparent, always-on-top BrowserWindow with macOS vibrancy. Positioned based on config. Starts hidden
-3. Write `src/desktop/preload.ts` — `contextBridge.exposeInMainWorld("byte", { prompt, hide, getContext, onResponse })`
-4. Write `src/desktop/tray.ts` — system tray icon with menu: show/hide, current model info, quit
-5. Write `src/desktop/main.ts` — Electron app lifecycle: `app.whenReady()`, create window, create tray, register global hotkey, set up IPC handlers
-6. Write `src/channels/desktop.ts` — `DesktopChannel` that handles IPC `prompt` calls by routing to the bound agent's session, streaming text deltas back via `webContents.send()`
-7. Write `src/renderer/index.html` — the overlay UI: header with Byte branding, message list, input field, send button. Calls `window.byte.prompt(text)` and listens for streamed responses
-8. Update `src/router/multi-gateway.ts` — add the `desktop` channel type branch alongside `telegram`. When a binding maps to `channel: "desktop"`, create a `DesktopChannel` instead of a Telegram bot
-9. Update `src/app.ts` — the Electron entrypoint. Bootstraps runtime, initializes agents, creates the multi-gateway (which now starts both desktop and telegram channels), then opens the Electron window
-10. Update `src/cli.ts` — `--app` flag spawns the Electron process via `electron .` or similar
-11. Wire up `npm run dev:app` → launch Electron in dev mode
+**What exists now**:
+1. `byte --app` launches an Electron overlay window
+2. Desktop accounts are configured via `channels.desktop.accounts`
+3. The renderer streams assistant text over IPC
+4. Each desktop account has its own persistent session index under the bound agent's sessions directory
+5. The renderer reads the active desktop `accountId` from the main process instead of hardcoding it
+
+**Current limitations**:
+1. No desktop context gathering yet
+2. One overlay window only
+3. `--app` does not also start Telegram
 
 **Milestone**: Press `Cmd+Shift+Space`, type a question, get an AI response in the floating panel. The overlay shows/hides cleanly. The bound agent's workspace personality comes through.
-
-**Risk**: Medium. Electron setup has friction — frameless transparent windows, vibrancy, and global hotkeys need per-platform testing. Keep the renderer simple (no React, no bundler) to reduce moving parts.
 
 ---
 
 ### Phase 4: Desktop + Telegram unified
+
+**Status**: implemented
 
 **Goal**: The Electron app runs both the desktop overlay AND Telegram bots simultaneously. One process, all channels live.
 
@@ -392,7 +418,7 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 4. Test: send a Telegram message to the `pi` agent while simultaneously using the desktop overlay with the `byte` agent. Verify they use separate workspaces and sessions
 5. Test: config with only `desktop` channel (no Telegram) — Electron app works, no Telegram errors
 6. Test: config with only `telegram` channel — runs like headless gateway, overlay is dormant
-7. Add the `--gateway` entrypoint as a true headless mode: imports the multi-gateway and agent initialization but does NOT import Electron at all. This is important for server deployment where Electron isn't installed
+7. Keep the `--gateway` entrypoint as a true headless mode: it must not import Electron at all
 
 **Milestone**: One `.dmg` app runs everything. Desktop overlay for quick asks, Telegram bots for mobile access, all sharing the same agent infrastructure. The headless gateway mode works without Electron for server use.
 
@@ -401,6 +427,8 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 ---
 
 ### Phase 5: Context engine
+
+**Status**: planned
 
 **Goal**: The desktop overlay is context-aware. It sees which app you're in, what's on your clipboard, and uses that to give better answers.
 
@@ -428,11 +456,13 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 
 ### Phase 6: Streaming and polish
 
+**Status**: partially done, additional polish planned
+
 **Goal**: Responses stream token-by-token in the overlay. The UI feels responsive and polished.
 
 **Tasks**:
-1. Update `src/channels/desktop.ts` — subscribe to the agent session's streaming events. On `text_delta`, send incremental text to the renderer via IPC. Debounce at ~50ms to avoid overwhelming the renderer
-2. Update the renderer — instead of waiting for the full response, append text as it streams in. Show a typing indicator while the first token is pending. Render markdown in responses (bold, code, inline code) — use a lightweight markdown-to-HTML function, not a full library
+1. Improve the existing streaming UX — debounce deltas if needed and smooth out the first-token state
+2. Update the renderer — render richer markdown in responses (bold, code, inline code) without overcomplicating the stack
 3. Add smooth show/hide animations for the overlay window — fade + slight slide from the edge
 4. Add the Byte character/avatar — a small animated element (CSS-only) that shows idle, thinking, and responding states
 5. Add keyboard shortcuts within the overlay — `Escape` to hide, `Cmd+K` to clear conversation
@@ -446,7 +476,9 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 
 ### Phase 7: Packaging and distribution
 
-**Goal**: `npm run dist` produces a `.dmg` that installs Byte as a native macOS app with a CLI accessible from the terminal.
+**Status**: planned
+
+**Goal**: `npm run dist` produces a `.dmg` that installs Byte as a native macOS app, with the app as the primary entrypoint and the CLI available separately from the terminal.
 
 **Tasks**:
 1. Configure `electron-builder.yml` — target macOS `.dmg`, set app category, icon, code signing (if you have an Apple Developer cert, otherwise unsigned for now)
@@ -463,6 +495,8 @@ These modules are adapted from pi-claw (local pi-claw path `/Users/mwamodo/code/
 
 ### Phase 8: Proactive mode and future
 
+**Status**: planned
+
 This is post-MVP. Included here for completeness, not committed to a timeline.
 
 - **Proactive suggestions** — clipboard change detection triggers a subtle animation on the Byte character. "Looks like you copied an error. Want me to explain it?" Gated by `proactiveMode: true` in config
@@ -477,9 +511,7 @@ This is post-MVP. Included here for completeness, not committed to a timeline.
 
 ### Electron + Node.js in one process
 
-The Electron main process runs both the overlay UI and the Telegram gateway. This works because grammY's long polling is non-blocking (it uses `fetch` under the hood), and pi-mono's streaming is also async. The only CPU-intensive work is the AI inference, which happens on the provider's servers. The local process is just I/O coordination.
-
-If this becomes a problem (unlikely), the Telegram gateway could move to a forked child process. But start simple.
+Active in the current implementation. `byte --app` starts the Electron app and boots all configured channels in one process. `byte --gateway` remains the headless Telegram-only entrypoint and does not import Electron.
 
 ### CLI as a separate entrypoint
 
@@ -562,10 +594,10 @@ npm install -D eslint@^10.0.3 eslint-config-prettier@^10.1.8 prettier@^3.8.1
 npm install -D @eslint/js@^10.0.1 typescript-eslint@^8.57.0 globals@^17.4.0
 ```
 
-Electron is added in Phase 3:
+Electron desktop dependencies:
 ```bash
-npm install electron@^33.0.0
-npm install -D electron-builder@^25.0.0
+npm install electron
+npm install -D electron-builder vite @vitejs/plugin-react react react-dom concurrently wait-on @types/react @types/react-dom
 ```
 
 ## Timeline summary
@@ -574,9 +606,9 @@ npm install -D electron-builder@^25.0.0
 |---|---|---|---|
 | 1. CLI foundation | 1 | `byte` TUI + print mode, `/login`, `/model` | Complete |
 | 2. Telegram gateway | 2 | `byte --gateway` with multi-agent routing | Complete |
-| 3. Desktop foundation | 3 | `byte --app` opens overlay, single prompt/response | Electron works |
-| 4. Unified process | 4 | Desktop + Telegram in one Electron process | Full architecture |
-| 5. Context engine | 5 | Active app, clipboard, CWD awareness | The differentiator |
-| 6. Streaming + polish | 6 | Token streaming, animations, markdown | Feels like a product |
-| 7. Packaging | 7-8 | `.dmg`, CLI install, first-run experience | Distributable |
-| 8. Proactive mode | 9+ | Clipboard triggers, quick actions | Post-MVP |
+| 3. Desktop foundation | 3 | `byte --app` overlay with config-driven desktop account routing | Complete |
+| 4. Unified process | 4 | Desktop + Telegram in one Electron process | Planned |
+| 5. Context engine | 5 | Active app, clipboard, CWD awareness | Planned |
+| 6. Streaming + polish | 6 | Streaming refinements, animations, richer rendering | In progress / planned |
+| 7. Packaging | 7-8 | `.dmg`, CLI install, first-run experience | Planned |
+| 8. Proactive mode | 9+ | Clipboard triggers, quick actions | Planned |

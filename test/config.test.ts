@@ -283,7 +283,7 @@ test("invalid promptMode throws a clear validation error", async () => {
 
 // --- Multi-agent config tests ---
 
-test("loadMultiAgentGatewayConfig: legacy config produces single agent/account/binding", async () => {
+test("loadMultiAgentGatewayConfig: legacy config produces default desktop and optional telegram bindings", async () => {
     const { env } = await withFakeHome({
         provider: "anthropic",
         model: "test-model",
@@ -306,15 +306,20 @@ test("loadMultiAgentGatewayConfig: legacy config produces single agent/account/b
     assert.equal(config.agents[0].id, "byte");
     assert.ok(config.agents[0].workspace.endsWith("/workspace"));
 
-    assert.equal(config.accounts.length, 1);
-    assert.equal(config.accounts[0].accountId, "default");
-    assert.equal(config.accounts[0].botToken, "legacy-token");
-    assert.deepEqual(config.accounts[0].allowFrom, [111]);
-    assert.equal(config.accounts[0].replyDebounceMs, 150);
+    assert.equal(config.telegramAccounts.length, 1);
+    assert.equal(config.telegramAccounts[0].accountId, "default");
+    assert.equal(config.telegramAccounts[0].botToken, "legacy-token");
+    assert.deepEqual(config.telegramAccounts[0].allowFrom, [111]);
+    assert.equal(config.telegramAccounts[0].replyDebounceMs, 150);
 
-    assert.equal(config.bindings.length, 1);
+    assert.equal(config.desktopAccounts.length, 1);
+    assert.equal(config.desktopAccounts[0].accountId, "default");
+    assert.equal(config.desktopAccounts[0].hotkey, "CommandOrControl+Shift+Space");
+    assert.equal(config.desktopAccounts[0].position, "bottom-right");
+
+    assert.equal(config.bindings.length, 2);
     assert.equal(config.bindings[0].agentId, "byte");
-    assert.equal(config.bindings[0].channel, "telegram");
+    assert.equal(config.bindings[0].channel, "desktop");
     assert.equal(config.bindings[0].accountId, "default");
 
     assert.equal(config.agents[0].provider, "anthropic");
@@ -359,7 +364,8 @@ test("loadMultiAgentGatewayConfig: multi-agent config parses correctly", async (
     assert.ok(config.agents[0].sessionsDir.endsWith("/sessions/byte"));
     assert.ok(config.agents[1].sessionsDir.endsWith("/sessions/alerts"));
 
-    assert.equal(config.accounts.length, 2);
+    assert.equal(config.telegramAccounts.length, 2);
+    assert.equal(config.desktopAccounts.length, 0);
     assert.equal(config.bindings.length, 2);
 });
 
@@ -403,34 +409,91 @@ test("loadMultiAgentGatewayConfig: binding references unknown account throws", a
 
     assert.match(
         runScriptExpectFailure(script, env),
-        /unknown account "missing"/,
+        /unknown telegram account "missing"/,
     );
 });
 
-// --- Stub flag tests ---
-
-test("--app exits non-zero with not-implemented message", async () => {
-    const { env } = await withFakeHome({});
+test("loadMultiAgentGatewayConfig supports desktop-only multi-agent config", async () => {
+    const { env } = await withFakeHome({
+        agents: { list: [{ id: "byte" }] },
+        bindings: [
+            { agentId: "byte", match: { channel: "desktop", accountId: "default" } },
+        ],
+        channels: {
+            desktop: { accounts: { default: {} } },
+        },
+    });
 
     const script = `
-        const { loadCliConfig } = await import("./src/config.ts");
-        loadCliConfig();
+        const { loadMultiAgentGatewayConfig } = await import("./src/config.ts");
+        process.stdout.write(JSON.stringify(loadMultiAgentGatewayConfig()));
     `;
 
-    const output = runScriptExpectFailure(script, env, ["--app"]);
-    assert.match(output, /not implemented yet/i);
+    const output = runScript(script, env);
+    const config = JSON.parse(output) as {
+        desktopAccounts: Array<{ accountId: string; hotkey: string; position: string }>;
+        telegramAccounts: unknown[];
+    };
+
+    assert.equal(config.telegramAccounts.length, 0);
+    assert.deepEqual(config.desktopAccounts, [
+        {
+            accountId: "default",
+            hotkey: "CommandOrControl+Shift+Space",
+            position: "bottom-right",
+        },
+    ]);
 });
 
-test("--gateway exits non-zero with not-implemented message", async () => {
-    const { env } = await withFakeHome({});
+test("loadMultiAgentGatewayConfig supports mixed desktop and telegram channels", async () => {
+    const { env } = await withFakeHome({
+        agents: { list: [{ id: "byte" }] },
+        bindings: [
+            { agentId: "byte", match: { channel: "desktop", accountId: "desk" } },
+            { agentId: "byte", match: { channel: "telegram", accountId: "bot" } },
+        ],
+        channels: {
+            desktop: { accounts: { desk: { hotkey: "Cmd+Shift+B", position: "top-left" } } },
+            telegram: { accounts: { bot: { botToken: "tok" } } },
+        },
+    });
 
     const script = `
-        const { loadCliConfig } = await import("./src/config.ts");
-        loadCliConfig();
+        const { loadMultiAgentGatewayConfig } = await import("./src/config.ts");
+        process.stdout.write(JSON.stringify(loadMultiAgentGatewayConfig()));
     `;
 
-    const output = runScriptExpectFailure(script, env, ["--gateway"]);
-    assert.match(output, /not implemented yet/i);
+    const output = runScript(script, env);
+    const config = JSON.parse(output) as {
+        desktopAccounts: Array<{ accountId: string; hotkey: string; position: string }>;
+        telegramAccounts: Array<{ accountId: string }>;
+    };
+
+    assert.equal(config.desktopAccounts[0]?.accountId, "desk");
+    assert.equal(config.desktopAccounts[0]?.position, "top-left");
+    assert.equal(config.telegramAccounts[0]?.accountId, "bot");
+});
+
+test("loadMultiAgentGatewayConfig: desktop binding references unknown account throws", async () => {
+    const { env } = await withFakeHome({
+        agents: { list: [{ id: "byte" }] },
+        bindings: [
+            { agentId: "byte", match: { channel: "desktop", accountId: "missing" } },
+        ],
+        channels: {
+            desktop: { accounts: { default: {} } },
+        },
+    });
+
+    const script = `
+        const { loadMultiAgentGatewayConfig } = await import("./src/config.ts");
+        loadMultiAgentGatewayConfig();
+    `;
+
+    assert.match(
+        runScriptExpectFailure(script, env),
+        /unknown desktop account "missing"/,
+    );
 });
 
 // --- CLI help test ---
